@@ -26,8 +26,7 @@ func BaseCommandAttributes(cmd *cobra.Command, streams Streams) []attribute.KeyV
 // Note: this should be the last func to wrap/modify the PersistentRunE/RunE funcs before command execution.
 //
 // can also be used for spans!
-func (cli *DockerCli) InstrumentCobraCommands(cmd *cobra.Command, mp metric.MeterProvider) {
-	meter := getDefaultMeter(mp)
+func (cli *DockerCli) InstrumentCobraCommands(ctx context.Context, cmd *cobra.Command) {
 	// If PersistentPreRunE is nil, make it execute PersistentPreRun and return nil by default
 	ogPersistentPreRunE := cmd.PersistentPreRunE
 	if ogPersistentPreRunE == nil {
@@ -55,10 +54,9 @@ func (cli *DockerCli) InstrumentCobraCommands(cmd *cobra.Command, mp metric.Mete
 		}
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			// start the timer as the first step of every cobra command
-			baseAttrs := BaseCommandAttributes(cmd, cli)
-			stopCobraCmdTimer := startCobraCommandTimer(cmd, meter, baseAttrs)
+			stopInstrumentation := cli.StartInstrumentation(ctx, cmd)
 			cmdErr := ogRunE(cmd, args)
-			stopCobraCmdTimer(cmdErr)
+			stopInstrumentation(cmdErr)
 			return cmdErr
 		}
 
@@ -66,8 +64,19 @@ func (cli *DockerCli) InstrumentCobraCommands(cmd *cobra.Command, mp metric.Mete
 	}
 }
 
-func startCobraCommandTimer(cmd *cobra.Command, meter metric.Meter, attrs []attribute.KeyValue) func(err error) {
+// StartInstrumentation instruments CLI commands with the individual metrics and spans configured.
+// It's the main command OTel utility, and new command-related metrics should be added to it.
+// It should be called immediately before command execution, and returns a stopInstrumentation function
+// that must be called with the error resulting from the command execution.
+func (cli *DockerCli) StartInstrumentation(ctx context.Context, cmd *cobra.Command) (stopInstrumentation func(error)) {
+	mp := cli.MeterProvider(ctx)
+	baseAttrs := BaseCommandAttributes(cmd, cli)
+	return startCobraCommandTimer(cmd, mp, baseAttrs)
+}
+
+func startCobraCommandTimer(cmd *cobra.Command, mp MeterProvider, attrs []attribute.KeyValue) func(err error) {
 	ctx := cmd.Context()
+	meter := getDefaultMeter(mp)
 	durationCounter, _ := meter.Float64Counter(
 		"command.time",
 		metric.WithDescription("Measures the duration of the cobra command"),
@@ -82,6 +91,7 @@ func startCobraCommandTimer(cmd *cobra.Command, meter metric.Meter, attrs []attr
 			metric.WithAttributes(attrs...),
 			metric.WithAttributes(cmdStatusAttrs...),
 		)
+		mp.ForceFlush(ctx)
 	}
 }
 
