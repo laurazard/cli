@@ -74,7 +74,7 @@ func (cli *DockerCli) StartInstrumentation(ctx context.Context, cmd *cobra.Comma
 	return startCobraCommandTimer(cmd, mp, baseAttrs)
 }
 
-func startCobraCommandTimer(cmd *cobra.Command, mp MeterProvider, attrs []attribute.KeyValue) func(err error) {
+func startCobraCommandTimer(cmd *cobra.Command, mp metric.MeterProvider, attrs []attribute.KeyValue) func(err error) {
 	ctx := cmd.Context()
 	meter := getDefaultMeter(mp)
 	durationCounter, _ := meter.Float64Counter(
@@ -91,7 +91,9 @@ func startCobraCommandTimer(cmd *cobra.Command, mp MeterProvider, attrs []attrib
 			metric.WithAttributes(attrs...),
 			metric.WithAttributes(cmdStatusAttrs...),
 		)
-		mp.ForceFlush(ctx)
+		if mp, ok := mp.(MeterProvider); ok {
+			mp.ForceFlush(ctx)
+		}
 	}
 }
 

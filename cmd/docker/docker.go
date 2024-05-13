@@ -309,7 +309,7 @@ func runDocker(ctx context.Context, dockerCli *command.DockerCli) error {
 	}
 
 	mp := dockerCli.MeterProvider(ctx)
-	defer mp.Shutdown(ctx)
+	defer mp.(command.MeterProvider).Shutdown(ctx)
 
 	otel.SetMeterProvider(mp)
 	dockerCli.InstrumentCobraCommands(ctx, cmd)

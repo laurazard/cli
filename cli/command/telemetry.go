@@ -44,32 +44,24 @@ type TelemetryClient interface {
 	// TracerProvider returns a TracerProvider. This TracerProvider will be configured
 	// with the default tracing components for a CLI program along with any options given
 	// for the SDK.
-	TracerProvider(ctx context.Context, opts ...sdktrace.TracerProviderOption) TracerProvider
+	TracerProvider(ctx context.Context, opts ...sdktrace.TracerProviderOption) trace.TracerProvider
 
 	// MeterProvider returns a MeterProvider. This MeterProvider will be configured
 	// with the default metric components for a CLI program along with any options given
 	// for the SDK.
-	MeterProvider(ctx context.Context, opts ...sdkmetric.Option) MeterProvider
+	MeterProvider(ctx context.Context, opts ...sdkmetric.Option) metric.MeterProvider
 }
 
 func (cli *DockerCli) Resource() *resource.Resource {
 	return cli.res.Get()
 }
 
-func (cli *DockerCli) TracerProvider(ctx context.Context, opts ...sdktrace.TracerProviderOption) TracerProvider {
-	allOpts := make([]sdktrace.TracerProviderOption, 0, len(opts)+2)
-	allOpts = append(allOpts, sdktrace.WithResource(cli.Resource()))
-	allOpts = append(allOpts, dockerSpanExporter(ctx, cli)...)
-	allOpts = append(allOpts, opts...)
-	return sdktrace.NewTracerProvider(allOpts...)
+func (cli *DockerCli) TracerProvider(ctx context.Context, opts ...sdktrace.TracerProviderOption) trace.TracerProvider {
+	return otel.GetTracerProvider()
 }
 
-func (cli *DockerCli) MeterProvider(ctx context.Context, opts ...sdkmetric.Option) MeterProvider {
-	allOpts := make([]sdkmetric.Option, 0, len(opts)+2)
-	allOpts = append(allOpts, sdkmetric.WithResource(cli.Resource()))
-	allOpts = append(allOpts, dockerMetricExporter(ctx, cli)...)
-	allOpts = append(allOpts, opts...)
-	return sdkmetric.NewMeterProvider(allOpts...)
+func (cli *DockerCli) MeterProvider(ctx context.Context, opts ...sdkmetric.Option) metric.MeterProvider {
+	return otel.GetMeterProvider()
 }
 
 // WithResourceOptions configures additional options for the default resource. The default
