@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sync"
 	"time"
@@ -48,6 +49,10 @@ type TelemetryClient interface {
 	// MeterProvider returns the currently initialized MeterProvider. This MeterProvider will be configured
 	// with the default metric components for a CLI program
 	MeterProvider() metric.MeterProvider
+
+	// InstrumentPluginCommand creates a new TelemetryCmd for the given exec.Cmd. This TelemetryCmd will
+	// automatically report metrics to the configured Exporters.
+	InstrumentPluginCommand(*exec.Cmd) *TelemetryCmd
 }
 
 func (cli *DockerCli) Resource() *resource.Resource {

@@ -110,9 +110,9 @@ func basePluginCommandAttributes(plugincmd *exec.Cmd, streams Streams) []attribu
 	}, stdioAttributes(streams)...)
 }
 
-// wrappedCmd is used to wrap an exec.Cmd in order to instrument the
+// TelemetryCmd is used to wrap an exec.Cmd in order to instrument the
 // command with otel by using the TimedRun() func
-type wrappedCmd struct {
+type TelemetryCmd struct {
 	*exec.Cmd
 
 	baseAttrs []attribute.KeyValue
@@ -120,7 +120,7 @@ type wrappedCmd struct {
 }
 
 // TimedRun measures the duration of the command execution using an otel meter
-func (c *wrappedCmd) TimedRun() error {
+func (c *TelemetryCmd) TimedRun() error {
 	stopPluginCommandTimer := c.cli.startPluginCommandTimer(c.cli.MeterProvider(), c.baseAttrs)
 	err := c.Cmd.Run()
 	stopPluginCommandTimer(err)
@@ -129,9 +129,9 @@ func (c *wrappedCmd) TimedRun() error {
 
 // InstrumentPluginCommand instruments the plugin's exec.Cmd to measure its execution time
 // Execute the returned command with TimedRun() to record the execution time.
-func (cli *DockerCli) InstrumentPluginCommand(plugincmd *exec.Cmd) *wrappedCmd {
+func (cli *DockerCli) InstrumentPluginCommand(plugincmd *exec.Cmd) *TelemetryCmd {
 	baseAttrs := basePluginCommandAttributes(plugincmd, cli)
-	newCmd := &wrappedCmd{Cmd: plugincmd, baseAttrs: baseAttrs, cli: cli}
+	newCmd := &TelemetryCmd{Cmd: plugincmd, baseAttrs: baseAttrs, cli: cli}
 	return newCmd
 }
 

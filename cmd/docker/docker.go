@@ -138,13 +138,8 @@ func setupHelpCommand(dockerCli command.Cli, rootCmd, helpCmd *cobra.Command) {
 		if len(args) > 0 {
 			helpRunCmd, err := pluginmanager.PluginRunCommand(dockerCli, args[0], rootCmd)
 			if err == nil {
-				if dockerCli, ok := dockerCli.(*command.DockerCli); ok {
-					helpcmd := dockerCli.InstrumentPluginCommand(helpRunCmd)
-					return helpcmd.TimedRun()
-				}
-				// This should not happen. continue without instrumenting the cmd if it does
-				fmt.Fprint(dockerCli.Err(), "Warning: Unexpected error, the help command will not have OTEL metrics")
-				return helpRunCmd.Run()
+				helpcmd := dockerCli.InstrumentPluginCommand(helpRunCmd)
+				return helpcmd.TimedRun()
 			}
 			if !pluginmanager.IsNotFound(err) {
 				return errors.Errorf("unknown help topic: %v", strings.Join(args, " "))
@@ -169,13 +164,8 @@ func tryRunPluginHelp(dockerCli command.Cli, ccmd *cobra.Command, cargs []string
 	if err != nil {
 		return err
 	}
-	if dockerCli, ok := dockerCli.(*command.DockerCli); ok {
-		helpcmd := dockerCli.InstrumentPluginCommand(helpRunCmd)
-		return helpcmd.TimedRun()
-	}
-	// This should not happen. continue without instrumenting the cmd if it does
-	fmt.Fprint(dockerCli.Err(), "Warning: Unexpected error, the plugin help command will not have OTEL metrics")
-	return helpRunCmd.Run()
+	helpcmd := dockerCli.InstrumentPluginCommand(helpRunCmd)
+	return helpcmd.TimedRun()
 }
 
 func setHelpFunc(dockerCli command.Cli, cmd *cobra.Command) {

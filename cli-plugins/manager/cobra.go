@@ -94,14 +94,9 @@ func AddPluginCommandStubs(dockerCli command.Cli, rootCmd *cobra.Command) (err e
 					if runErr != nil {
 						return nil, cobra.ShellCompDirectiveError
 					}
-					if verifiedDockerCli, ok := dockerCli.(*command.DockerCli); ok {
-						runCommand := verifiedDockerCli.InstrumentPluginCommand(pluginRunCommand)
-						runErr = runCommand.TimedRun()
-					} else {
-						// This should not happen. continue without instrumenting the cmd if it does
-						fmt.Fprint(dockerCli.Err(), "Warning: Unexpected error, the plugin command will not have OTEL metrics")
-						runErr = pluginRunCommand.Run()
-					}
+					runCommand := dockerCli.InstrumentPluginCommand(pluginRunCommand)
+					runErr = runCommand.TimedRun()
+
 					if runErr == nil {
 						os.Exit(0) // plugin already rendered complete data
 					}
