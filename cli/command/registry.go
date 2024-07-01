@@ -13,7 +13,7 @@ import (
 	"github.com/docker/cli/cli/config/configfile"
 	"github.com/docker/cli/cli/config/credentials"
 	configtypes "github.com/docker/cli/cli/config/types"
-	"github.com/docker/cli/cli/hints"
+	"github.com/docker/cli/cli/internal/oauth/util"
 	"github.com/docker/cli/cli/streams"
 	"github.com/docker/docker/api/types"
 	registrytypes "github.com/docker/docker/api/types/registry"
@@ -21,10 +21,6 @@ import (
 	"github.com/moby/term"
 	"github.com/pkg/errors"
 )
-
-const patSuggest = "You can log in with your password or a Personal Access " +
-	"Token (PAT). Using a limited-scope PAT grants better security and is required " +
-	"for organizations using SSO. Learn more at https://docs.docker.com/go/access-tokens/"
 
 // RegistryAuthenticationPrivilegedFunc returns a RequestPrivilegeFunc from the specified registry index info
 // for the given command.
@@ -110,7 +106,7 @@ func ConfigureAuth(cli Cli, flUser, flPassword string, authconfig *registrytypes
 	// Linux will hit this if you attempt `cat | docker login`, and Windows
 	// will hit this if you attempt docker login from mintty where stdin
 	// is a pipe, not a character based console.
-	if flPassword == "" && !cli.In().IsTerminal() {
+	if flPassword == "" && isDefaultRegistry && !cli.In().IsTerminal() {
 		return errors.Errorf("Error: Cannot perform an interactive login from a non TTY device")
 	}
 
@@ -120,10 +116,19 @@ func ConfigureAuth(cli Cli, flUser, flPassword string, authconfig *registrytypes
 		if isDefaultRegistry {
 			// if this is a default registry (docker hub), then display the following message.
 			fmt.Fprintln(cli.Out(), "Log in with your Docker ID or email address to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com/ to create one.")
-			if hints.Enabled() {
-				fmt.Fprintln(cli.Out(), patSuggest)
-				fmt.Fprintln(cli.Out())
+
+			res, err := cli.OAuthManager().LoginDevice()
+			if err != nil {
+				return err
 			}
+			claims, err := util.GetClaims(res.AccessToken)
+			if err != nil {
+				return err
+			}
+
+			authconfig.Username = claims.Domain.Username
+			authconfig.Password = res.AccessToken
+			return nil
 		}
 		promptWithDefault(cli.Out(), "Username", authconfig.Username)
 		var err error
