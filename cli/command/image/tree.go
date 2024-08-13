@@ -3,10 +3,12 @@ package image
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/docker/cli/cli/command"
+	"github.com/docker/cli/cli/streams"
 	"github.com/morikuni/aec"
 
 	"github.com/containerd/platforms"
@@ -92,9 +94,51 @@ type subImage struct {
 
 const headerSpacing = 3
 
-//nolint:gocyclo
+var (
+	headerColor        = aec.NewBuilder(aec.DefaultF, aec.Bold).ANSI
+	topNameColor       = aec.NewBuilder(aec.BlueF, aec.Underline, aec.Bold).ANSI
+	normalColor        = aec.NewBuilder(aec.DefaultF).ANSI
+	normalFaintedColor = aec.NewBuilder(aec.DefaultF).Faint().ANSI
+	greenColor         = aec.NewBuilder(aec.GreenF).ANSI
+)
+
 func printImageTree(dockerCLI command.Cli, images []topImage) error {
 	out := dockerCLI.Out()
+
+	// disable colors if not tty
+	if !out.IsTerminal() {
+		headerColor = noColor{}
+		topNameColor = noColor{}
+		normalColor = noColor{}
+		normalFaintedColor = noColor{}
+		greenColor = noColor{}
+	}
+
+	headers := getFormattedHeaders(out, images)
+
+	// Print headers
+	for i, h := range headers {
+		if i > 0 {
+			_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+		}
+		_, _ = fmt.Fprint(out, h.PrintC(headerColor, h.Title))
+	}
+	_, _ = fmt.Fprintln(out)
+
+	// Print images
+	for iid, img := range images {
+		if iid != 0 {
+			_, _ = fmt.Fprintln(out, "")
+		}
+		printImageNames(out, img, headers, topNameColor)
+		printDetails(out, normalColor, img.Details, headers)
+		printImageChildren(out, img, headers)
+	}
+
+	return nil
+}
+
+func getFormattedHeaders(out *streams.Out, images []topImage) []header {
 	_, width := out.GetTtySize()
 	if width == 0 {
 		width = 80
@@ -148,89 +192,63 @@ func printImageTree(dockerCLI command.Cli, images []topImage) error {
 	}
 	headers[0].Width = nameWidth
 
-	headerColor := aec.NewBuilder(aec.DefaultF, aec.Bold).ANSI
-	topNameColor := aec.NewBuilder(aec.BlueF, aec.Underline, aec.Bold).ANSI
-	normalColor := aec.NewBuilder(aec.DefaultF).ANSI
-	normalFaintedColor := aec.NewBuilder(aec.DefaultF).Faint().ANSI
-	greenColor := aec.NewBuilder(aec.GreenF).ANSI
-	if !out.IsTerminal() {
-		headerColor = noColor{}
-		topNameColor = noColor{}
-		normalColor = noColor{}
-		normalFaintedColor = noColor{}
-		greenColor = noColor{}
-	}
+	return headers
+}
 
-	// Print headers
-	for i, h := range headers {
-		if i > 0 {
-			_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-		}
-
-		_, _ = fmt.Fprint(out, h.PrintC(headerColor, h.Title))
-	}
-
-	_, _ = fmt.Fprintln(out)
-
-	printDetails := func(clr aec.ANSI, details imageDetails) {
-		if len(headers) <= 1 {
-			return
-		}
-		truncID := stringid.TruncateID(details.ID)
-		_, _ = fmt.Fprint(out, headers[1].Print(clr, truncID))
-		_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-
-		if len(headers) <= 2 {
-			return
-		}
-		_, _ = fmt.Fprint(out, headers[2].Print(clr, details.DiskUsage))
-		_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-
-		if len(headers) <= 3 {
-			return
-		}
-		if details.Used {
-			_, _ = fmt.Fprint(out, headers[3].Print(greenColor, "✔"))
-		} else {
-			_, _ = fmt.Fprint(out, headers[3].Print(clr, " "))
-		}
-		_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-	}
-
-	// Print images
-	for _, img := range images {
-		_, _ = fmt.Fprintln(out, "")
-		for nameIdx, name := range img.Names {
-			if nameIdx != 0 {
-				_, _ = fmt.Fprintln(out, "")
-			}
-			_, _ = fmt.Fprint(out, headers[0].Print(topNameColor, name))
-		}
-		_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-
-		printDetails(normalColor, img.Details)
-
-		_, _ = fmt.Fprintln(out, "")
-		for idx, sub := range img.Children {
-			clr := normalColor
-			if !sub.Available {
-				clr = normalFaintedColor
-			}
-
-			if idx != len(img.Children)-1 {
-				_, _ = fmt.Fprint(out, headers[0].Print(clr, "├─ "+sub.Platform))
-			} else {
-				_, _ = fmt.Fprint(out, headers[0].Print(clr, "└─ "+sub.Platform))
-			}
-
-			_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
-			printDetails(clr, sub.Details)
-
+func printImageNames(out io.Writer, img topImage, headers []header, topNameColor aec.ANSI) {
+	for nameIdx, name := range img.Names {
+		if nameIdx != 0 {
 			_, _ = fmt.Fprintln(out, "")
 		}
+		_, _ = fmt.Fprint(out, headers[0].Print(topNameColor, name))
 	}
+	_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+}
 
-	return nil
+func printDetails(out io.Writer, clr aec.ANSI, details imageDetails, headers []header) {
+	if len(headers) <= 1 {
+		return
+	}
+	truncID := stringid.TruncateID(details.ID)
+	_, _ = fmt.Fprint(out, headers[1].Print(clr, truncID))
+	_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+
+	if len(headers) <= 2 {
+		return
+	}
+	_, _ = fmt.Fprint(out, headers[2].Print(clr, details.DiskUsage))
+	_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+
+	if len(headers) <= 3 {
+		return
+	}
+	if details.Used {
+		_, _ = fmt.Fprint(out, headers[3].Print(greenColor, "✔"))
+	} else {
+		_, _ = fmt.Fprint(out, headers[3].Print(clr, " "))
+	}
+	_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+}
+
+func printImageChildren(out io.Writer, img topImage, headers []header) {
+	_, _ = fmt.Fprintln(out, "")
+	for idx, sub := range img.Children {
+		clr := normalColor
+		if !sub.Available {
+			clr = normalFaintedColor
+		}
+
+		if idx != len(img.Children)-1 {
+			_, _ = fmt.Fprint(out, headers[0].Print(clr, "├─ "+sub.Platform))
+		} else {
+			_, _ = fmt.Fprint(out, headers[0].Print(clr, "└─ "+sub.Platform))
+		}
+
+		_, _ = fmt.Fprint(out, strings.Repeat(" ", headerSpacing))
+		printDetails(out, clr, sub.Details, headers)
+
+		_, _ = fmt.Fprintln(out, "")
+	}
 }
 
 type header struct {
