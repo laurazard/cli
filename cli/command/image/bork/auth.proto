@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package docker.types.image;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/docker/cli/command/image";
+
+// AuthRequest is sent as a callback on a stream
+message AuthRequest {
+	// host is the registry host
+	string host = 1;
+
+	// reference is the namespace and repository name requested from the registry
+	string reference = 2;
+
+	// wwwauthenticate is the HTTP WWW-Authenticate header values returned from the registry
+	repeated string wwwauthenticate = 3;
+}
+
+message AuthResponse {
+	AuthType authType = 1;
+	string secret = 2;
+	string username = 3;
+	google.protobuf.Timestamp expire_at = 4;
+	// TODO: Stream error
+}
+
+enum AuthType {
+	NONE = 0;
+
+	// CREDENTIALS is used to exchange username/password for access token
+	// using an oauth or "Docker Registry Token" server
+	CREDENTIALS = 1;
+
+	// REFRESH is used to exchange secret for access token using an oauth
+	// or "Docker Registry Token" server
+	REFRESH = 2;
+
+	// HEADER is used to set the HTTP Authorization header to secret
+	// directly for the registry.
+	// Value should be `<auth-scheme> <authorization-parameters>`
+	HEADER = 3;
+}

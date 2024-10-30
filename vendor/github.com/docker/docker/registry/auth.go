@@ -67,6 +67,7 @@ func (scs staticCredentialStore) SetRefreshToken(*url.URL, string, string) {
 // endpoint will be pinged to get authorization challenges. These challenges
 // will be used to authenticate against the registry to validate credentials.
 func loginV2(authConfig *registry.AuthConfig, endpoint APIEndpoint, userAgent string) (string, string, error) {
+	// TODO(laurazard): definitely here
 	var (
 		endpointStr          = strings.TrimRight(endpoint.URL.String(), "/") + "/v2/"
 		modifiers            = Headers(userAgent, nil)
@@ -107,6 +108,9 @@ func v2AuthHTTPClient(endpoint *url.URL, authTransport http.RoundTripper, modifi
 	if err != nil {
 		return nil, err
 	}
+	println("MEOW MEOW MEOW MEOW")
+	println("MEOW MEOW MEOW MEOW")
+	println("MEOW MEOW MEOW MEOW")
 
 	authHandlers := []auth.AuthenticationHandler{
 		auth.NewTokenHandlerWithOptions(auth.TokenHandlerOptions{
