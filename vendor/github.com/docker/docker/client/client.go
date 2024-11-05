@@ -452,14 +452,20 @@ func (cli *Client) dialerFromTransport() func(context.Context, string, string) (
 func (cli *Client) Dialer() func(context.Context) (net.Conn, error) {
 	return func(ctx context.Context) (net.Conn, error) {
 		if dialFn := cli.dialerFromTransport(); dialFn != nil {
+			println("DIALFN")
+			println("PROTO", cli.proto)
+			println("addr", cli.addr)
 			return dialFn(ctx, cli.proto, cli.addr)
 		}
 		switch cli.proto {
 		case "unix":
+			println("PROTO", cli.proto)
+			println("addr", cli.addr)
 			return net.Dial(cli.proto, cli.addr)
 		case "npipe":
 			return sockets.DialPipe(cli.addr, 32*time.Second)
 		default:
+			println("DEFAULT")
 			if tlsConfig := cli.tlsConfig(); tlsConfig != nil {
 				return tls.Dial(cli.proto, cli.addr, tlsConfig)
 			}
