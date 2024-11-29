@@ -194,8 +194,7 @@ func runContainer(ctx context.Context, dockerCli command.Cli, runOpts *runOption
 
 	// New context here because we don't to cancel waiting on container exit/remove
 	// when we cancel attach, etc.
-	statusCtx, cancelStatusCtx := context.WithCancel(context.WithoutCancel(ctx))
-	defer cancelStatusCtx()
+	statusCtx := context.WithoutCancel(ctx)
 	statusChan := waitExitOrRemoved(statusCtx, apiClient, containerID, copts.autoRemove)
 
 	// start the container
